@@ -802,8 +802,7 @@ function claudeHeaders(apiKey) {
     'Content-Type': 'application/json',
     'x-api-key': apiKey,
     'anthropic-version': '2023-06-01',
-    'anthropic-dangerous-direct-browser-ipc': 'true',
-    'anthropic-beta': 'web-search-2025-03-05'
+    'anthropic-dangerous-direct-browser-ipc': 'true'
   };
 }
 
@@ -853,7 +852,7 @@ async function searchHdImages(apiKey, cardInfo) {
     body: JSON.stringify({
       model: CLAUDE_MODEL,
       max_tokens: 1024,
-      tools: [{ type: 'web_search', name: 'web_search' }],
+      tools: [{ type: 'web_search_20250305', name: 'web_search' }],
       messages: [{
         role: 'user',
         content: `Cerca immagini HD ufficiali della carta TCG: "${cardInfo.name}" del set "${cardInfo.set}" numero ${cardInfo.number} (${cardInfo.game}).
@@ -879,7 +878,7 @@ async function searchBestPrice(apiKey, cardInfo) {
     body: JSON.stringify({
       model: CLAUDE_MODEL,
       max_tokens: 1024,
-      tools: [{ type: 'web_search', name: 'web_search' }],
+      tools: [{ type: 'web_search_20250305', name: 'web_search' }],
       messages: [{
         role: 'user',
         content: `Cerca il prezzo PIÙ ALTO attuale della carta TCG: "${cardInfo.name}" set "${cardInfo.set}" numero ${cardInfo.number} rarità ${cardInfo.rarity} (${cardInfo.game}).
