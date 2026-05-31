@@ -613,14 +613,14 @@
 <!-- ===== SETTINGS PANEL ===== -->
 <div class="panel" id="panel-settings">
   <div class="setup-card">
-    <div class="setup-title">🔑 API Key OpenRouter</div>
+    <div class="setup-title">🔑 API Key Hugging Face</div>
     <div class="setup-text">
-      Inserisci la tua API key di OpenRouter per abilitare il riconoscimento carte con AI.
+      Inserisci la tua API key di Hugging Face per abilitare il riconoscimento carte con AI.
       È <strong>completamente gratuita</strong>! Salvata solo sul tuo dispositivo.
     </div>
     <div class="input-group">
       <label class="input-label">API Key</label>
-      <input type="password" class="input-field" id="apiKeyInput" placeholder="sk-or-...">
+      <input type="password" class="input-field" id="apiKeyInput" placeholder="hf_...">
     </div>
     <button class="btn btn-gold" onclick="saveApiKey()">💾 Salva API Key</button>
   </div>
@@ -628,7 +628,7 @@
   <div class="setup-card">
     <div class="setup-title">ℹ️ Come Usare</div>
     <div class="setup-text" style="font-size:14px;line-height:1.8">
-      1️⃣ Inserisci la tua API Key OpenRouter (gratuita)<br>
+      1️⃣ Inserisci la tua API Key Hugging Face (gratuita)<br>
       2️⃣ Vai su <strong>Scansiona</strong> e avvia la camera<br>
       3️⃣ Inquadra la carta e premi <strong>Scansiona</strong><br>
       4️⃣ L'AI riconosce la carta, cerca la foto HD e stima il prezzo<br>
@@ -646,14 +646,15 @@
   </div>
 
   <div class="setup-card" style="border-color:rgba(80,200,120,0.3)">
-    <div class="setup-title" style="color:var(--green)">🆓 OpenRouter è Gratuito!</div>
+    <div class="setup-title" style="color:var(--green)">🆓 Hugging Face è Gratuito!</div>
     <div class="setup-text" style="font-size:14px;line-height:1.8">
-      1️⃣ Vai su <strong>openrouter.ai</strong><br>
-      2️⃣ Clicca <strong>"Sign in"</strong> → accedi con Google<br>
-      3️⃣ Vai su <strong>"Keys"</strong> → <strong>"Create Key"</strong><br>
-      4️⃣ Copia la chiave (inizia con <strong>sk-or-...</strong>)<br>
-      5️⃣ Incollala qui sopra e salva<br><br>
-      ✅ Modello gratuito: <strong>Gemini 2.0 Flash</strong> — nessuna carta di credito!
+      1️⃣ Vai su <strong>huggingface.co</strong><br>
+      2️⃣ Clicca <strong>"Sign Up"</strong> → registrati (o accedi)<br>
+      3️⃣ Vai su <strong>Settings → Access Tokens</strong><br>
+      4️⃣ Clicca <strong>"New token"</strong> → tipo <strong>Read</strong><br>
+      5️⃣ Copia la chiave (inizia con <strong>hf_...</strong>)<br>
+      6️⃣ Incollala qui sopra e salva<br><br>
+      ✅ Modello: <strong>Llama 3.2 Vision</strong> — nessuna carta di credito!
     </div>
   </div>
 </div>
@@ -792,25 +793,15 @@ async function shootAndAnalyze() {
 }
 
 // ============================================================
-// OPENROUTER HELPERS
+// HUGGING FACE HELPERS
 // ============================================================
-const OR_URL = 'https://openrouter.ai/api/v1/chat/completions';
+const HF_VISION_URL = 'https://router.huggingface.co/hf-inference/models/meta-llama/Llama-3.2-11B-Vision-Instruct/v1/chat/completions';
+const HF_TEXT_URL = 'https://router.huggingface.co/hf-inference/models/meta-llama/Llama-3.2-3B-Instruct/v1/chat/completions';
 
-// Modelli vision gratuiti in ordine di priorità
-const VISION_MODELS = [
-  'moonshotai/kimi-k2.6:free',
-  'google/gemma-4-26b-a4b-it:free',
-  'google/gemma-4-31b-it:free',
-  'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free',
-  'poolside/laguna-xs.2:free'
-];
-
-function orHeaders(apiKey) {
+function hfHeaders(apiKey) {
   return {
     'Content-Type': 'application/json',
-    'Authorization': `Bearer ${apiKey}`,
-    'HTTP-Referer': 'https://dvirno.github.io/Tcg-scanner/',
-    'X-Title': 'TCG Scanner'
+    'Authorization': `Bearer ${apiKey}`
   };
 }
 
@@ -821,85 +812,77 @@ function extractJson(text) {
   throw new Error('Nessun JSON trovato');
 }
 
-// Prova più modelli in sequenza finché uno funziona
-async function fetchWithFallback(apiKey, buildBody) {
-  let lastError;
-  for (const model of VISION_MODELS) {
-    try {
-      setScanText(`Provo con ${model.split('/')[1].split(':')[0]}...`);
-      const res = await fetch(OR_URL, {
-        method: 'POST',
-        headers: orHeaders(apiKey),
-        body: JSON.stringify({ ...buildBody(model), model })
-      });
-      const data = await res.json();
-      if (data.error) {
-        lastError = new Error(data.error.message);
-        continue;
-      }
-      return data;
-    } catch(e) {
-      lastError = e;
-    }
-  }
-  throw lastError || new Error('Nessun modello disponibile');
-}
-
-// STEP 1: IDENTIFY CARD (OpenRouter Vision con fallback)
+// STEP 1: IDENTIFY CARD (HF Vision)
 // ============================================================
 async function identifyCard(apiKey, imageData) {
-  const data = await fetchWithFallback(apiKey, (model) => ({
-    max_tokens: 800,
-    messages: [{
-      role: 'user',
-      content: [
-        { type: 'image_url', image_url: { url: imageData } },
-        { type: 'text', text: `Analizza questa carta TCG. Rispondi SOLO con JSON valido, senza markdown né backtick:
+  const res = await fetch(HF_VISION_URL, {
+    method: 'POST',
+    headers: hfHeaders(apiKey),
+    body: JSON.stringify({
+      model: 'meta-llama/Llama-3.2-11B-Vision-Instruct',
+      max_tokens: 800,
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'image_url', image_url: { url: imageData } },
+          { type: 'text', text: `Analizza questa carta TCG. Rispondi SOLO con JSON valido, senza markdown né backtick:
 {"game":"Pokémon|One Piece|Magic: The Gathering|Dragon Ball Super|Disney Lorcana","name":"nome carta in lingua originale","set":"nome set completo","setCode":"codice set es. SV01","number":"numero carta es. 001/100","rarity":"rarità","language":"IT|EN|JP","condition":"Near Mint|Lightly Played|Moderately Played|Heavily Played","foil":true|false,"cardmarketQuery":"stringa di ricerca ottimizzata per Cardmarket"}` }
-      ]
-    }]
-  }));
+        ]
+      }]
+    })
+  });
+  const data = await res.json();
+  if (data.error) throw new Error(typeof data.error === 'string' ? data.error : (data.error.message || JSON.stringify(data.error)));
   return extractJson(data.choices[0].message.content);
 }
 
 // ============================================================
-// STEP 2: HD IMAGES (costruite da info carta — nessuna vision)
+// STEP 2: HD IMAGES
 // ============================================================
 async function searchHdImages(apiKey, cardInfo) {
   try {
-    const data = await fetchWithFallback(apiKey, (model) => ({
-      max_tokens: 800,
-      messages: [{
-        role: 'user',
-        content: `Sei un esperto di carte TCG. Fornisci URL diretti a immagini HD ufficiali per questa carta:
-Gioco: ${cardInfo.game}, Nome: ${cardInfo.name}, Set: ${cardInfo.set} (${cardInfo.setCode || ''}), Numero: ${cardInfo.number}
-Per Pokémon usa pokemondb.net. Per Magic usa scryfall.com. Per One Piece usa op-tcg.com.
-Rispondi SOLO con JSON valido: {"images":[{"url":"url_diretto_immagine","source":"nome_sito","quality":"HD"}]}`
-      }]
-    }));
+    const res = await fetch(HF_TEXT_URL, {
+      method: 'POST',
+      headers: hfHeaders(apiKey),
+      body: JSON.stringify({
+        model: 'meta-llama/Llama-3.2-3B-Instruct',
+        max_tokens: 600,
+        messages: [{
+          role: 'user',
+          content: `Sei un esperto TCG. URL immagini HD per: ${cardInfo.game} - ${cardInfo.name} - ${cardInfo.set} n.${cardInfo.number}. Per Pokémon usa pokemondb.net. Per Magic usa scryfall.com. Rispondi SOLO JSON: {"images":[{"url":"url","source":"sito","quality":"HD"}]}`
+        }]
+      })
+    });
+    const data = await res.json();
+    if (data.error) return { images: [] };
     return extractJson(data.choices[0].message.content);
   } catch(e) { return { images: [] }; }
 }
 
 // ============================================================
-// STEP 3: BEST PRICE (stima + link Cardmarket)
+// STEP 3: BEST PRICE
 // ============================================================
 async function searchBestPrice(apiKey, cardInfo) {
   const today = new Date().toLocaleDateString('it-IT');
   const cmUrl = `https://www.cardmarket.com/it/search?searchString=${encodeURIComponent(cardInfo.name)}`;
   try {
-    const data = await fetchWithFallback(apiKey, (model) => ({
-      max_tokens: 600,
-      messages: [{
-        role: 'user',
-        content: `Sei un esperto di mercato carte TCG. Stima il prezzo attuale:
-Gioco: ${cardInfo.game}, Nome: ${cardInfo.name}, Set: ${cardInfo.set}, Rarità: ${cardInfo.rarity}, Foil: ${cardInfo.foil ? 'Sì' : 'No'}
-Rispondi SOLO con JSON valido: {"maxPrice":"es. €12.00","currency":"EUR","source":"Stima di mercato","sourceUrl":"","searchDate":"${today}","cardmarketUrl":"${cmUrl}"}`
-      }]
-    }));
+    const res = await fetch(HF_TEXT_URL, {
+      method: 'POST',
+      headers: hfHeaders(apiKey),
+      body: JSON.stringify({
+        model: 'meta-llama/Llama-3.2-3B-Instruct',
+        max_tokens: 400,
+        messages: [{
+          role: 'user',
+          content: `Stima prezzo mercato TCG: ${cardInfo.game} - ${cardInfo.name} - ${cardInfo.set} - Rarità: ${cardInfo.rarity} - Foil: ${cardInfo.foil ? 'Sì' : 'No'}. Rispondi SOLO JSON: {"maxPrice":"€XX.00","currency":"EUR","source":"Stima di mercato","sourceUrl":"","searchDate":"${today}","cardmarketUrl":"${cmUrl}"}`
+        }]
+      })
+    });
+    const data = await res.json();
+    if (data.error) throw new Error();
     return extractJson(data.choices[0].message.content);
   } catch(e) {
-    return { maxPrice: 'N/D', source: 'Non trovato', sourceUrl: '', searchDate: today, cardmarketUrl: cmUrl };
+    return { maxPrice: 'N/D', source: 'Stima non disponibile', sourceUrl: '', searchDate: today, cardmarketUrl: cmUrl };
   }
 }
 
