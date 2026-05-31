@@ -795,7 +795,15 @@ async function shootAndAnalyze() {
 // OPENROUTER HELPERS
 // ============================================================
 const OR_URL = 'https://openrouter.ai/api/v1/chat/completions';
-const OR_MODEL = 'deepseek/deepseek-v4-flash:free';
+
+// Modelli vision gratuiti in ordine di priorità
+const VISION_MODELS = [
+  'moonshotai/kimi-k2.6:free',
+  'google/gemma-4-26b-a4b-it:free',
+  'google/gemma-4-31b-it:free',
+  'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free',
+  'poolside/laguna-xs.2:free'
+];
 
 function orHeaders(apiKey) {
   return {
@@ -813,96 +821,86 @@ function extractJson(text) {
   throw new Error('Nessun JSON trovato');
 }
 
-// STEP 1: IDENTIFY CARD (OpenRouter Vision)
+// Prova più modelli in sequenza finché uno funziona
+async function fetchWithFallback(apiKey, buildBody) {
+  let lastError;
+  for (const model of VISION_MODELS) {
+    try {
+      setScanText(`Provo con ${model.split('/')[1].split(':')[0]}...`);
+      const res = await fetch(OR_URL, {
+        method: 'POST',
+        headers: orHeaders(apiKey),
+        body: JSON.stringify({ ...buildBody(model), model })
+      });
+      const data = await res.json();
+      if (data.error) {
+        lastError = new Error(data.error.message);
+        continue;
+      }
+      return data;
+    } catch(e) {
+      lastError = e;
+    }
+  }
+  throw lastError || new Error('Nessun modello disponibile');
+}
+
+// STEP 1: IDENTIFY CARD (OpenRouter Vision con fallback)
 // ============================================================
 async function identifyCard(apiKey, imageData) {
-  const res = await fetch(OR_URL, {
-    method: 'POST',
-    headers: orHeaders(apiKey),
-    body: JSON.stringify({
-      model: OR_MODEL,
-      max_tokens: 800,
-      messages: [{
-        role: 'user',
-        content: [
-          { type: 'image_url', image_url: { url: imageData } },
-          { type: 'text', text: `Analizza questa carta TCG. Rispondi SOLO con JSON valido, senza markdown né backtick:
+  const data = await fetchWithFallback(apiKey, (model) => ({
+    max_tokens: 800,
+    messages: [{
+      role: 'user',
+      content: [
+        { type: 'image_url', image_url: { url: imageData } },
+        { type: 'text', text: `Analizza questa carta TCG. Rispondi SOLO con JSON valido, senza markdown né backtick:
 {"game":"Pokémon|One Piece|Magic: The Gathering|Dragon Ball Super|Disney Lorcana","name":"nome carta in lingua originale","set":"nome set completo","setCode":"codice set es. SV01","number":"numero carta es. 001/100","rarity":"rarità","language":"IT|EN|JP","condition":"Near Mint|Lightly Played|Moderately Played|Heavily Played","foil":true|false,"cardmarketQuery":"stringa di ricerca ottimizzata per Cardmarket"}` }
-        ]
-      }]
-    })
-  });
-  const data = await res.json();
-  if (data.error) throw new Error(data.error.message);
-  const text = data.choices[0].message.content;
-  return extractJson(text);
+      ]
+    }]
+  }));
+  return extractJson(data.choices[0].message.content);
 }
 
 // ============================================================
-// STEP 2: HD IMAGES (costruite da info carta)
+// STEP 2: HD IMAGES (costruite da info carta — nessuna vision)
 // ============================================================
 async function searchHdImages(apiKey, cardInfo) {
-  const res = await fetch(OR_URL, {
-    method: 'POST',
-    headers: orHeaders(apiKey),
-    body: JSON.stringify({
-      model: OR_MODEL,
+  try {
+    const data = await fetchWithFallback(apiKey, (model) => ({
       max_tokens: 800,
       messages: [{
         role: 'user',
-        content: `Sei un esperto di carte TCG. Basandoti sulle tue conoscenze, fornisci URL diretti a immagini HD ufficiali per questa carta:
-Gioco: ${cardInfo.game}
-Nome: ${cardInfo.name}
-Set: ${cardInfo.set} (${cardInfo.setCode || ''})
-Numero: ${cardInfo.number}
-
-Per Pokémon usa pokemondb.net o assets.pokemon.com.
-Per Magic usa scryfall.com.
-Per One Piece usa op-tcg.com o limitless.asia.
-
+        content: `Sei un esperto di carte TCG. Fornisci URL diretti a immagini HD ufficiali per questa carta:
+Gioco: ${cardInfo.game}, Nome: ${cardInfo.name}, Set: ${cardInfo.set} (${cardInfo.setCode || ''}), Numero: ${cardInfo.number}
+Per Pokémon usa pokemondb.net. Per Magic usa scryfall.com. Per One Piece usa op-tcg.com.
 Rispondi SOLO con JSON valido: {"images":[{"url":"url_diretto_immagine","source":"nome_sito","quality":"HD"}]}`
       }]
-    })
-  });
-  const data = await res.json();
-  if (data.error) throw new Error(data.error.message);
-  try { return extractJson(data.choices[0].message.content); } catch(e) {}
-  return { images: [] };
+    }));
+    return extractJson(data.choices[0].message.content);
+  } catch(e) { return { images: [] }; }
 }
 
 // ============================================================
-// STEP 3: BEST PRICE (link Cardmarket + stima)
+// STEP 3: BEST PRICE (stima + link Cardmarket)
 // ============================================================
 async function searchBestPrice(apiKey, cardInfo) {
   const today = new Date().toLocaleDateString('it-IT');
-  const res = await fetch(OR_URL, {
-    method: 'POST',
-    headers: orHeaders(apiKey),
-    body: JSON.stringify({
-      model: OR_MODEL,
+  const cmUrl = `https://www.cardmarket.com/it/search?searchString=${encodeURIComponent(cardInfo.name)}`;
+  try {
+    const data = await fetchWithFallback(apiKey, (model) => ({
       max_tokens: 600,
       messages: [{
         role: 'user',
-        content: `Sei un esperto di mercato carte TCG. Per questa carta fornisci una stima del prezzo di mercato attuale:
-Gioco: ${cardInfo.game}
-Nome: ${cardInfo.name}
-Set: ${cardInfo.set}
-Numero: ${cardInfo.number}
-Rarità: ${cardInfo.rarity}
-Foil: ${cardInfo.foil ? 'Sì' : 'No'}
-
-Basati sulle tue conoscenze del mercato TCG (Cardmarket, eBay).
-Costruisci anche un URL di ricerca Cardmarket per questa carta.
-
-Rispondi SOLO con JSON valido: {"maxPrice":"es. €12.00","currency":"EUR","source":"Stima di mercato","sourceUrl":"","searchDate":"${today}","cardmarketUrl":"https://www.cardmarket.com/it/search?searchString=${encodeURIComponent(cardInfo.name)}"}`
+        content: `Sei un esperto di mercato carte TCG. Stima il prezzo attuale:
+Gioco: ${cardInfo.game}, Nome: ${cardInfo.name}, Set: ${cardInfo.set}, Rarità: ${cardInfo.rarity}, Foil: ${cardInfo.foil ? 'Sì' : 'No'}
+Rispondi SOLO con JSON valido: {"maxPrice":"es. €12.00","currency":"EUR","source":"Stima di mercato","sourceUrl":"","searchDate":"${today}","cardmarketUrl":"${cmUrl}"}`
       }]
-    })
-  });
-  const data = await res.json();
-  if (data.error) throw new Error(data.error.message);
-  try { return extractJson(data.choices[0].message.content); } catch(e) {}
-  return { maxPrice: 'N/D', source: 'Non trovato', sourceUrl: '', searchDate: today,
-    cardmarketUrl: `https://www.cardmarket.com/it/search?searchString=${encodeURIComponent(cardInfo.name)}` };
+    }));
+    return extractJson(data.choices[0].message.content);
+  } catch(e) {
+    return { maxPrice: 'N/D', source: 'Non trovato', sourceUrl: '', searchDate: today, cardmarketUrl: cmUrl };
+  }
 }
 
 // ============================================================
