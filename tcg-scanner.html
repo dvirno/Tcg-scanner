@@ -613,14 +613,14 @@
 <!-- ===== SETTINGS PANEL ===== -->
 <div class="panel" id="panel-settings">
   <div class="setup-card">
-    <div class="setup-title">🔑 API Key Google Gemini</div>
+    <div class="setup-title">🔑 API Key OpenRouter</div>
     <div class="setup-text">
-      Inserisci la tua API key di Google Gemini per abilitare il riconoscimento carte con AI.
-      Ottienila su <strong>aistudio.google.com</strong> → Get API Key. È <strong>completamente gratuita</strong>! Salvata solo sul tuo dispositivo.
+      Inserisci la tua API key di OpenRouter per abilitare il riconoscimento carte con AI.
+      È <strong>completamente gratuita</strong>! Salvata solo sul tuo dispositivo.
     </div>
     <div class="input-group">
       <label class="input-label">API Key</label>
-      <input type="password" class="input-field" id="apiKeyInput" placeholder="AIza...">
+      <input type="password" class="input-field" id="apiKeyInput" placeholder="sk-or-...">
     </div>
     <button class="btn btn-gold" onclick="saveApiKey()">💾 Salva API Key</button>
   </div>
@@ -628,10 +628,10 @@
   <div class="setup-card">
     <div class="setup-title">ℹ️ Come Usare</div>
     <div class="setup-text" style="font-size:14px;line-height:1.8">
-      1️⃣ Inserisci la tua API Key Google Gemini (gratuita)<br>
+      1️⃣ Inserisci la tua API Key OpenRouter (gratuita)<br>
       2️⃣ Vai su <strong>Scansiona</strong> e avvia la camera<br>
       3️⃣ Inquadra la carta e premi <strong>Scansiona</strong><br>
-      4️⃣ Gemini riconosce la carta, cerca la foto HD e il prezzo più alto online<br>
+      4️⃣ L'AI riconosce la carta, cerca la foto HD e stima il prezzo<br>
       5️⃣ Aggiungi alla collezione<br>
       6️⃣ Esporta in <strong>Excel</strong> con foto e prezzi<br>
       7️⃣ Scarica la foto HD per il tuo sito D_Card TCG<br><br>
@@ -646,14 +646,14 @@
   </div>
 
   <div class="setup-card" style="border-color:rgba(80,200,120,0.3)">
-    <div class="setup-title" style="color:var(--green)">🆓 Gemini è Gratuito!</div>
+    <div class="setup-title" style="color:var(--green)">🆓 OpenRouter è Gratuito!</div>
     <div class="setup-text" style="font-size:14px;line-height:1.8">
-      1️⃣ Vai su <strong>aistudio.google.com</strong><br>
-      2️⃣ Accedi con il tuo account Google<br>
-      3️⃣ Clicca <strong>"Get API Key"</strong> → <strong>"Create API Key"</strong><br>
-      4️⃣ Copia la chiave (inizia con <strong>AIza...</strong>)<br>
+      1️⃣ Vai su <strong>openrouter.ai</strong><br>
+      2️⃣ Clicca <strong>"Sign in"</strong> → accedi con Google<br>
+      3️⃣ Vai su <strong>"Keys"</strong> → <strong>"Create Key"</strong><br>
+      4️⃣ Copia la chiave (inizia con <strong>sk-or-...</strong>)<br>
       5️⃣ Incollala qui sopra e salva<br><br>
-      ✅ <strong>1.500 richieste/giorno gratis</strong> — più che sufficienti!
+      ✅ Modello gratuito: <strong>Gemini 2.0 Flash</strong> — nessuna carta di credito!
     </div>
   </div>
 </div>
@@ -792,99 +792,117 @@ async function shootAndAnalyze() {
 }
 
 // ============================================================
-// GEMINI HELPERS
+// OPENROUTER HELPERS
 // ============================================================
-function geminiUrl(apiKey, model) {
-  if (apiKey.startsWith('AIza')) {
-    return `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${apiKey}`;
-  }
-  return `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent`;
-}
-function geminiHeaders(apiKey) {
-  const h = { 'Content-Type': 'application/json' };
-  if (!apiKey.startsWith('AIza')) h['Authorization'] = `Bearer ${apiKey}`;
-  return h;
+const OR_URL = 'https://openrouter.ai/api/v1/chat/completions';
+const OR_MODEL = 'google/gemini-2.0-flash-exp:free';
+
+function orHeaders(apiKey) {
+  return {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${apiKey}`,
+    'HTTP-Referer': 'https://dvirno.github.io/Tcg-scanner/',
+    'X-Title': 'TCG Scanner'
+  };
 }
 
-// STEP 1: IDENTIFY CARD (Gemini Vision)
+function extractJson(text) {
+  const clean = text.replace(/```json|```/g, '').trim();
+  const idx = clean.indexOf('{');
+  if (idx >= 0) return JSON.parse(clean.slice(idx));
+  throw new Error('Nessun JSON trovato');
+}
+
+// STEP 1: IDENTIFY CARD (OpenRouter Vision)
 // ============================================================
 async function identifyCard(apiKey, imageData) {
-  const base64 = imageData.split(',')[1];
-  const res = await fetch(geminiUrl(apiKey, 'gemini-1.5-flash'), {
+  const res = await fetch(OR_URL, {
     method: 'POST',
-    headers: geminiHeaders(apiKey),
+    headers: orHeaders(apiKey),
     body: JSON.stringify({
-      contents: [{
-        parts: [
-          { inline_data: { mime_type: 'image/jpeg', data: base64 } },
-          { text: `Analizza questa carta TCG. Rispondi SOLO con JSON valido, senza markdown né backtick:
+      model: OR_MODEL,
+      max_tokens: 800,
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'image_url', image_url: { url: imageData } },
+          { type: 'text', text: `Analizza questa carta TCG. Rispondi SOLO con JSON valido, senza markdown né backtick:
 {"game":"Pokémon|One Piece|Magic: The Gathering|Dragon Ball Super|Disney Lorcana","name":"nome carta in lingua originale","set":"nome set completo","setCode":"codice set es. SV01","number":"numero carta es. 001/100","rarity":"rarità","language":"IT|EN|JP","condition":"Near Mint|Lightly Played|Moderately Played|Heavily Played","foil":true|false,"cardmarketQuery":"stringa di ricerca ottimizzata per Cardmarket"}` }
         ]
-      }],
-      generationConfig: { temperature: 0.1, maxOutputTokens: 800 }
+      }]
     })
   });
   const data = await res.json();
   if (data.error) throw new Error(data.error.message);
-  const text = data.candidates[0].content.parts[0].text.replace(/```json|```/g, '').trim();
-  return JSON.parse(text);
+  const text = data.choices[0].message.content;
+  return extractJson(text);
 }
 
 // ============================================================
-// STEP 2: HD IMAGES (Gemini con Google Search)
+// STEP 2: HD IMAGES (costruite da info carta)
 // ============================================================
 async function searchHdImages(apiKey, cardInfo) {
-  const res = await fetch(geminiUrl(apiKey, 'gemini-1.5-flash'), {
+  const res = await fetch(OR_URL, {
     method: 'POST',
-    headers: geminiHeaders(apiKey),
+    headers: orHeaders(apiKey),
     body: JSON.stringify({
-      contents: [{
-        parts: [{ text: `Cerca immagini HD ufficiali della carta TCG: "${cardInfo.name}" del set "${cardInfo.set}" numero ${cardInfo.number} (${cardInfo.game}).
-Cerca su: pokemondb.net, scryfall.com, tcgplayer.com, cardmarket.com, op-tcg.com, limitless.asia.
-Rispondi SOLO con JSON: {"images":[{"url":"url_diretto_immagine_jpg_o_png","source":"nome_sito","quality":"HD"}]} — max 4 immagini reali con URL diretto che finisce in .jpg .png o .webp` }]
-      }],
-      tools: [{ "google_search": {} }],
-      generationConfig: { temperature: 0.1, maxOutputTokens: 800 }
+      model: OR_MODEL,
+      max_tokens: 800,
+      messages: [{
+        role: 'user',
+        content: `Sei un esperto di carte TCG. Basandoti sulle tue conoscenze, fornisci URL diretti a immagini HD ufficiali per questa carta:
+Gioco: ${cardInfo.game}
+Nome: ${cardInfo.name}
+Set: ${cardInfo.set} (${cardInfo.setCode || ''})
+Numero: ${cardInfo.number}
+
+Per Pokémon usa pokemondb.net o assets.pokemon.com.
+Per Magic usa scryfall.com.
+Per One Piece usa op-tcg.com o limitless.asia.
+
+Rispondi SOLO con JSON valido: {"images":[{"url":"url_diretto_immagine","source":"nome_sito","quality":"HD"}]}`
+      }]
     })
   });
   const data = await res.json();
   if (data.error) throw new Error(data.error.message);
-  const text = data.candidates?.[0]?.content?.parts?.find(p => p.text)?.text || '';
-  try {
-    const clean = text.replace(/```json|```/g, '').trim();
-    const idx = clean.indexOf('{');
-    if (idx >= 0) return JSON.parse(clean.slice(idx));
-  } catch(e) {}
+  try { return extractJson(data.choices[0].message.content); } catch(e) {}
   return { images: [] };
 }
 
 // ============================================================
-// STEP 3: BEST PRICE (Gemini con Google Search)
+// STEP 3: BEST PRICE (link Cardmarket + stima)
 // ============================================================
 async function searchBestPrice(apiKey, cardInfo) {
-  const res = await fetch(geminiUrl(apiKey, 'gemini-1.5-flash'), {
+  const today = new Date().toLocaleDateString('it-IT');
+  const res = await fetch(OR_URL, {
     method: 'POST',
-    headers: geminiHeaders(apiKey),
+    headers: orHeaders(apiKey),
     body: JSON.stringify({
-      contents: [{
-        parts: [{ text: `Cerca il prezzo PIÙ ALTO attuale della carta TCG: "${cardInfo.name}" set "${cardInfo.set}" numero ${cardInfo.number} rarità ${cardInfo.rarity} (${cardInfo.game}).
-Cerca su: cardmarket.com, ebay.it, cardtrader.com, tcgplayer.com.
-Trova il prezzo singolo più alto (non mazzi, non lotti).
-Rispondi SOLO con JSON: {"maxPrice":"es. €45.00","currency":"EUR","source":"nome_sito","sourceUrl":"url_pagina","searchDate":"${new Date().toLocaleDateString('it-IT')}","cardmarketUrl":"url_ricerca_cardmarket"}` }]
-      }],
-      tools: [{ "google_search": {} }],
-      generationConfig: { temperature: 0.1, maxOutputTokens: 800 }
+      model: OR_MODEL,
+      max_tokens: 600,
+      messages: [{
+        role: 'user',
+        content: `Sei un esperto di mercato carte TCG. Per questa carta fornisci una stima del prezzo di mercato attuale:
+Gioco: ${cardInfo.game}
+Nome: ${cardInfo.name}
+Set: ${cardInfo.set}
+Numero: ${cardInfo.number}
+Rarità: ${cardInfo.rarity}
+Foil: ${cardInfo.foil ? 'Sì' : 'No'}
+
+Basati sulle tue conoscenze del mercato TCG (Cardmarket, eBay).
+Costruisci anche un URL di ricerca Cardmarket per questa carta.
+
+Rispondi SOLO con JSON valido: {"maxPrice":"es. €12.00","currency":"EUR","source":"Stima di mercato","sourceUrl":"","searchDate":"${today}","cardmarketUrl":"https://www.cardmarket.com/it/search?searchString=${encodeURIComponent(cardInfo.name)}"}`
+      }]
     })
   });
   const data = await res.json();
   if (data.error) throw new Error(data.error.message);
-  const text = data.candidates?.[0]?.content?.parts?.find(p => p.text)?.text || '';
-  try {
-    const clean = text.replace(/```json|```/g, '').trim();
-    const idx = clean.indexOf('{');
-    if (idx >= 0) return JSON.parse(clean.slice(idx));
-  } catch(e) {}
-  return { maxPrice: 'N/D', source: 'Non trovato', sourceUrl: '', searchDate: new Date().toLocaleDateString('it-IT') };
+  try { return extractJson(data.choices[0].message.content); } catch(e) {}
+  return { maxPrice: 'N/D', source: 'Non trovato', sourceUrl: '', searchDate: today,
+    cardmarketUrl: `https://www.cardmarket.com/it/search?searchString=${encodeURIComponent(cardInfo.name)}` };
 }
 
 // ============================================================
