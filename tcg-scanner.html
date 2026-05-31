@@ -795,8 +795,8 @@ async function shootAndAnalyze() {
 // ============================================================
 // HUGGING FACE HELPERS
 // ============================================================
-const HF_VISION_URL = 'https://router.huggingface.co/hf-inference/models/meta-llama/Llama-3.2-11B-Vision-Instruct/v1/chat/completions';
-const HF_TEXT_URL = 'https://router.huggingface.co/hf-inference/models/meta-llama/Llama-3.2-3B-Instruct/v1/chat/completions';
+const HF_VISION_URL = 'https://api-inference.huggingface.co/models/meta-llama/Llama-3.2-11B-Vision-Instruct/v1/chat/completions';
+const HF_TEXT_URL = 'https://api-inference.huggingface.co/models/meta-llama/Llama-3.2-3B-Instruct/v1/chat/completions';
 
 function hfHeaders(apiKey) {
   return {
