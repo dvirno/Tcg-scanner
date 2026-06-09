@@ -516,15 +516,22 @@ const SCRIPTS = [
 // ── VOICE LANGUAGES ──────────────────────────────────────────────────────────
 const LANGS = ['it-IT','it-IT','it-IT','it-IT','en-GB','it-IT','it-IT'];
 
+// ── iOS / Safari detection ────────────────────────────────────────────────────
+const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+              (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
 // ── STATE ────────────────────────────────────────────────────────────────────
 let currentSlide = 0;
-let isPlaying = false;
-let isPaused = false;
-let utterance = null;
-let wordSpans = [];
-let currentWordIndex = 0;
-let wordTimings = [];
-let charOffset = 0; // for boundary tracking
+let isPlaying    = false;
+let isPaused     = false;
+let utterance    = null;
+let wordSpans    = [];
+// Timer-based fallback (iOS doesn't fire onboundary)
+let timerWordIdx = 0;   // current word in timer mode
+let timerHandle  = null;
+let boundaryWorked = false; // did native boundary fire at least once?
+let boundaryCheckTimer = null;
+let speakStartWord = 0; // word index we started speaking from (for resume)
 
 // ── INIT SLIDE ───────────────────────────────────────────────────────────────
 function initSlide(idx) {
@@ -532,7 +539,6 @@ function initSlide(idx) {
   slides.forEach(s => s.classList.remove('active'));
   slides[idx].classList.add('active');
 
-  // Render word spans in the active slide's script-text
   const container = slides[idx].querySelector('#script-text');
   const words = SCRIPTS[idx].split(/(\s+)/);
   container.innerHTML = '';
@@ -550,9 +556,8 @@ function initSlide(idx) {
     }
   });
 
-  // Update UI
   document.getElementById('slide-counter').textContent = `Slide ${idx+1} / 7`;
-  const pct = ((idx) / 6) * 100;
+  const pct = (idx / 6) * 100;
   document.getElementById('progress-bar').style.width = pct + '%';
   document.getElementById('btn-prev').disabled = idx === 0;
   document.getElementById('btn-next').disabled = idx === 6;
@@ -574,20 +579,45 @@ function resetWordHighlights() {
 }
 
 function highlightWord(idx) {
+  if (idx < 0 || idx >= wordSpans.length) return;
   wordSpans.forEach((s, i) => {
-    if (i < idx) s.className = 'word spoken';
+    if (i < idx)      s.className = 'word spoken';
     else if (i === idx) s.className = 'word current';
-    else s.className = 'word';
+    else               s.className = 'word';
   });
-  // scroll into view
-  if (wordSpans[idx]) {
-    wordSpans[idx].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-  }
+  wordSpans[idx].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
 }
 
-// ── SPEECH ───────────────────────────────────────────────────────────────────
+// ── TIMER-BASED FALLBACK (for iOS Safari) ────────────────────────────────────
+// Estimate ms per word based on its length and speech rate.
+// Calibrated to ~140 wpm at rate=1.0 for Italian TTS.
+function msForWord(wordText, rate) {
+  const baseMs = 400; // base ms for a 4-char word at rate 1.0
+  const charMs = 55;
+  const raw = (baseMs + (wordText.length - 4) * charMs) / rate;
+  return Math.max(120, raw);
+}
+
+function startTimerMode(fromWordIdx, rate) {
+  clearTimerMode();
+  timerWordIdx = fromWordIdx;
+
+  function scheduleNext() {
+    if (timerWordIdx >= wordSpans.length) return;
+    highlightWord(timerWordIdx);
+    const delay = msForWord(wordSpans[timerWordIdx].textContent, rate);
+    timerWordIdx++;
+    timerHandle = setTimeout(scheduleNext, delay);
+  }
+  scheduleNext();
+}
+
+function clearTimerMode() {
+  if (timerHandle !== null) { clearTimeout(timerHandle); timerHandle = null; }
+}
+
+// ── BUILD CHAR MAP ────────────────────────────────────────────────────────────
 function buildWordMap(text) {
-  // Build array of {start, end} char positions for each non-space token
   const map = [];
   const re = /\S+/g;
   let m;
@@ -597,50 +627,87 @@ function buildWordMap(text) {
   return map;
 }
 
-function speak() {
+// ── SPEAK (from a given word index) ──────────────────────────────────────────
+function speakFrom(fromWordIdx) {
   if (!window.speechSynthesis) {
-    showStatus('Browser non supporta Web Speech API');
+    showStatus('Il browser non supporta la sintesi vocale');
     return;
   }
-  window.speechSynthesis.cancel();
 
-  const text = SCRIPTS[currentSlide];
+  window.speechSynthesis.cancel();
+  clearTimerMode();
+  clearTimeout(boundaryCheckTimer);
+
+  // Build the text starting from fromWordIdx
+  const allWords = wordSpans.map(s => s.textContent);
+  const text = allWords.slice(fromWordIdx).join(' ');
+  speakStartWord = fromWordIdx;
+
+  const rate = parseFloat(document.getElementById('speed-select').value);
   utterance = new SpeechSynthesisUtterance(text);
   utterance.lang = LANGS[currentSlide];
-  utterance.rate = parseFloat(document.getElementById('speed-select').value);
+  utterance.rate = rate;
   utterance.pitch = 1;
+
+  // Pre-select a voice for the right language
+  const voices = window.speechSynthesis.getVoices();
+  const lang = LANGS[currentSlide];
+  const match = voices.find(v => v.lang.startsWith(lang.split('-')[0]) && v.lang === lang)
+             || voices.find(v => v.lang.startsWith(lang.split('-')[0]));
+  if (match) utterance.voice = match;
 
   const wordMap = buildWordMap(text);
   let lastWordIdx = -1;
+  boundaryWorked = false;
 
   utterance.onboundary = (e) => {
     if (e.name !== 'word') return;
+    boundaryWorked = true;
+    clearTimeout(boundaryCheckTimer);
+    clearTimerMode(); // stop timer if it was running
+
     const charIdx = e.charIndex;
-    // find which word this boundary falls in
     let wi = wordMap.findIndex(w => charIdx >= w.start && charIdx < w.end);
-    if (wi === -1) {
-      // fallback: find closest start
-      wi = wordMap.findIndex(w => w.start >= charIdx);
-      if (wi === -1) wi = wordMap.length - 1;
+    if (wi === -1) wi = wordMap.findIndex(w => w.start >= charIdx);
+    if (wi === -1) wi = wordMap.length - 1;
+
+    const absIdx = fromWordIdx + wi;
+    if (absIdx !== lastWordIdx && absIdx < wordSpans.length) {
+      lastWordIdx = absIdx;
+      highlightWord(absIdx);
     }
-    if (wi !== lastWordIdx && wi >= 0 && wi < wordSpans.length) {
-      lastWordIdx = wi;
-      highlightWord(wi);
-    }
+  };
+
+  utterance.onstart = () => {
+    // Give boundary 1.2 seconds to fire; if not, switch to timer mode
+    boundaryCheckTimer = setTimeout(() => {
+      if (!boundaryWorked) {
+        showStatus('Modalità timer attiva (Safari/iOS)');
+        startTimerMode(fromWordIdx, rate);
+      }
+    }, 1200);
   };
 
   utterance.onend = () => {
-    // mark all as spoken
+    clearTimerMode();
+    clearTimeout(boundaryCheckTimer);
     wordSpans.forEach(s => s.className = 'word spoken');
     isPlaying = false;
     isPaused = false;
+    timerWordIdx = 0;
     updateButtons();
-    showStatus('Lettura completata');
+    showStatus('Lettura completata ✓');
   };
 
   utterance.onerror = (e) => {
-    if (e.error !== 'interrupted') showStatus('Errore voce: ' + e.error);
-    isPlaying = false; isPaused = false; updateButtons();
+    clearTimerMode();
+    clearTimeout(boundaryCheckTimer);
+    if (e.error !== 'interrupted' && e.error !== 'canceled') {
+      showStatus('Errore voce: ' + e.error);
+    }
+    isPlaying = false;
+    isPaused = false;
+    updateButtons();
   };
 
   window.speechSynthesis.speak(utterance);
@@ -649,47 +716,92 @@ function speak() {
   updateButtons();
 }
 
+// ── iOS KEEP-ALIVE (Safari pauses TTS after ~15s in background) ──────────────
+let keepAliveInterval = null;
+function startKeepAlive() {
+  if (!isIOS) return;
+  stopKeepAlive();
+  keepAliveInterval = setInterval(() => {
+    if (window.speechSynthesis.speaking && !window.speechSynthesis.paused) {
+      window.speechSynthesis.pause();
+      window.speechSynthesis.resume();
+    }
+  }, 10000);
+}
+function stopKeepAlive() {
+  if (keepAliveInterval) { clearInterval(keepAliveInterval); keepAliveInterval = null; }
+}
+
+// ── TOGGLE PLAY ───────────────────────────────────────────────────────────────
 function togglePlay() {
   if (!isPlaying && !isPaused) {
+    // Fresh start
     resetWordHighlights();
-    speak();
+    timerWordIdx = 0;
+    speakFrom(0);
+    startKeepAlive();
     return;
   }
-  if (isPlaying && !isPaused) {
-    window.speechSynthesis.pause();
+
+  if (isPlaying) {
+    // Pause
+    const pausedAtWord = boundaryWorked
+      ? (wordSpans.findIndex(s => s.className === 'word current'))
+      : timerWordIdx - 1;
+    timerWordIdx = Math.max(0, pausedAtWord);
+
+    clearTimerMode();
+    clearTimeout(boundaryCheckTimer);
+    window.speechSynthesis.cancel(); // iOS doesn't support pause(), use cancel
+    stopKeepAlive();
+
     isPaused = true;
     isPlaying = false;
     updateButtons();
-    showStatus('In pausa');
+    showStatus('In pausa — premi ▶ per riprendere');
     return;
   }
+
   if (isPaused) {
-    window.speechSynthesis.resume();
+    // Resume from saved word
+    const resumeFrom = Math.max(0, timerWordIdx);
+    highlightWord(resumeFrom);
+    speakFrom(resumeFrom);
+    startKeepAlive();
     isPaused = false;
-    isPlaying = true;
-    updateButtons();
     return;
   }
 }
 
+// ── STOP ─────────────────────────────────────────────────────────────────────
 function stopAll() {
+  clearTimerMode();
+  clearTimeout(boundaryCheckTimer);
+  stopKeepAlive();
   window.speechSynthesis && window.speechSynthesis.cancel();
   isPlaying = false;
   isPaused = false;
+  timerWordIdx = 0;
   updateButtons();
 }
 
+// ── SPEED CHANGE ──────────────────────────────────────────────────────────────
 function updateRate() {
-  if (utterance) utterance.rate = parseFloat(document.getElementById('speed-select').value);
-  // Re-speak from current position is complex; just update for next time
+  // If speaking, restart from current word with new rate
+  if (isPlaying) {
+    const cur = wordSpans.findIndex(s => s.className === 'word current');
+    const from = cur >= 0 ? cur : timerWordIdx;
+    speakFrom(from);
+  }
 }
 
+// ── BUTTONS ──────────────────────────────────────────────────────────────────
 function updateButtons() {
-  const btn = document.getElementById('btn-play');
+  const btn  = document.getElementById('btn-play');
   const stop = document.getElementById('btn-stop');
-  if (isPlaying) { btn.textContent = '⏸ Pausa'; }
-  else if (isPaused) { btn.textContent = '▶ Riprendi'; }
-  else { btn.textContent = '▶ Inizia lettura'; }
+  if (isPlaying)       btn.textContent = '⏸ Pausa';
+  else if (isPaused)   btn.textContent = '▶ Riprendi';
+  else                 btn.textContent = '▶ Inizia lettura';
   stop.disabled = (!isPlaying && !isPaused);
 }
 
@@ -700,7 +812,7 @@ function showStatus(msg) {
   el.textContent = msg;
   el.classList.add('show');
   clearTimeout(statusTimer);
-  statusTimer = setTimeout(() => el.classList.remove('show'), 2500);
+  statusTimer = setTimeout(() => el.classList.remove('show'), 3000);
 }
 
 // ── KEYBOARD ─────────────────────────────────────────────────────────────────
@@ -708,7 +820,7 @@ document.addEventListener('keydown', e => {
   if (e.target.tagName === 'SELECT') return;
   if (e.key === ' ' || e.key === 'k') { e.preventDefault(); togglePlay(); }
   if (e.key === 'ArrowRight') changeSlide(1);
-  if (e.key === 'ArrowLeft') changeSlide(-1);
+  if (e.key === 'ArrowLeft')  changeSlide(-1);
   if (e.key === 'Escape' || e.key === 's') stopAll();
 });
 
@@ -716,9 +828,16 @@ document.addEventListener('keydown', e => {
 initSlide(0);
 updateButtons();
 
-// Workaround: Chrome requires user gesture for voices; warm up on first load
-window.speechSynthesis.getVoices();
-window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
+// Pre-load voices (Safari needs this triggered early)
+function loadVoices() {
+  const v = window.speechSynthesis.getVoices();
+  if (v.length === 0 && window.speechSynthesis.onvoiceschanged !== undefined) {
+    window.speechSynthesis.onvoiceschanged = loadVoices;
+  }
+}
+loadVoices();
+
+if (isIOS) showStatus('iPad rilevato — usa Safari e alza il volume');
 </script>
 </body>
 </html>
