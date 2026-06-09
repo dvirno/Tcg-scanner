@@ -480,10 +480,10 @@
   <div id="speed-wrap">
     <span>Velocità:</span>
     <select id="speed-select" onchange="updateRate()">
-      <option value="0.75">Lenta</option>
-      <option value="0.9" selected>Normale</option>
-      <option value="1.1">Veloce</option>
-      <option value="1.3">Rapida</option>
+      <option value="0.7">Lenta</option>
+      <option value="0.82" selected>Normale</option>
+      <option value="0.95">Veloce</option>
+      <option value="1.1">Rapida</option>
     </select>
   </div>
 </div>
@@ -588,14 +588,30 @@ function highlightWord(idx) {
   wordSpans[idx].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
 }
 
+// ── PUNCTUATION BREATHING ────────────────────────────────────────────────────
+// Add micro-pauses so TTS engines breathe naturally at punctuation marks.
+// Extra spaces = brief pause in most engines (including iOS Safari).
+function addBreathing(text) {
+  return text
+    .replace(/\. /g,  '.   ')   // full stop → long pause
+    .replace(/\? /g,  '?   ')
+    .replace(/! /g,   '!   ')
+    .replace(/: /g,   ':  ')    // colon → medium pause
+    .replace(/; /g,   ';  ')
+    .replace(/, /g,   ',  ')    // comma → short pause
+    .replace(/— /g,   '—  ');
+}
+
 // ── TIMER-BASED FALLBACK (for iOS Safari) ────────────────────────────────────
-// Estimate ms per word based on its length and speech rate.
-// Calibrated to ~140 wpm at rate=1.0 for Italian TTS.
+// Estimate ms per word based on its length, punctuation, and speech rate.
 function msForWord(wordText, rate) {
-  const baseMs = 400; // base ms for a 4-char word at rate 1.0
-  const charMs = 55;
-  const raw = (baseMs + (wordText.length - 4) * charMs) / rate;
-  return Math.max(120, raw);
+  const baseMs = 420;
+  const charMs = 52;
+  let raw = (baseMs + (wordText.length - 4) * charMs) / rate;
+  // Extra pause after sentence-ending punctuation
+  if (/[.!?]$/.test(wordText))  raw += 350 / rate;
+  else if (/[,;:\—]$/.test(wordText)) raw += 180 / rate;
+  return Math.max(130, raw);
 }
 
 function startTimerMode(fromWordIdx, rate) {
@@ -638,21 +654,26 @@ function speakFrom(fromWordIdx) {
   clearTimerMode();
   clearTimeout(boundaryCheckTimer);
 
-  // Build the text starting from fromWordIdx
+  // Build the text starting from fromWordIdx, with natural punctuation pauses
   const allWords = wordSpans.map(s => s.textContent);
-  const text = allWords.slice(fromWordIdx).join(' ');
+  const rawText = allWords.slice(fromWordIdx).join(' ');
+  const text = addBreathing(rawText);
   speakStartWord = fromWordIdx;
 
   const rate = parseFloat(document.getElementById('speed-select').value);
   utterance = new SpeechSynthesisUtterance(text);
   utterance.lang = LANGS[currentSlide];
   utterance.rate = rate;
-  utterance.pitch = 1;
+  utterance.pitch = 0.95;  // slightly lower = more natural
 
-  // Pre-select a voice for the right language
+  // Prefer high-quality voices: on iOS "Alice"/"Federica" (it), "Daniel" (en-GB)
   const voices = window.speechSynthesis.getVoices();
   const lang = LANGS[currentSlide];
-  const match = voices.find(v => v.lang.startsWith(lang.split('-')[0]) && v.lang === lang)
+  const premiumNames = lang.startsWith('it') ? ['Alice','Federica','Luca','Paola']
+                                              : ['Daniel','Kate','Moira'];
+  const match = premiumNames.map(n => voices.find(v => v.name === n)).find(Boolean)
+             || voices.find(v => v.lang === lang && v.localService)
+             || voices.find(v => v.lang === lang)
              || voices.find(v => v.lang.startsWith(lang.split('-')[0]));
   if (match) utterance.voice = match;
 
