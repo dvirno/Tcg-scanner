@@ -1,0 +1,864 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Maturità 2026 — Domenico</title>
+<style>
+  :root {
+    --navy: #1a2453;
+    --navy-dark: #111836;
+    --navy-light: #243070;
+    --gold: #c9a227;
+    --gold-light: #e8bf4a;
+    --white: #f5f5f5;
+    --text-dim: #8899cc;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    background: var(--navy-dark);
+    color: var(--white);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* ── TOP BAR ── */
+  #topbar {
+    background: var(--navy);
+    border-bottom: 3px solid var(--gold);
+    padding: 10px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+  #topbar h1 { font-size: 1rem; color: var(--gold); letter-spacing: 2px; text-transform: uppercase; }
+  #slide-counter { font-size: 0.85rem; color: var(--text-dim); }
+
+  /* ── PROGRESS BAR ── */
+  #progress-wrap { height: 4px; background: var(--navy-light); flex-shrink: 0; }
+  #progress-bar { height: 100%; background: var(--gold); transition: width 0.4s ease; }
+
+  /* ── MAIN STAGE ── */
+  #stage {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    position: relative;
+  }
+
+  /* ── SLIDE ── */
+  .slide {
+    display: none;
+    flex-direction: column;
+    height: 100%;
+    animation: fadeIn 0.5s ease;
+  }
+  .slide.active { display: flex; }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ── SLIDE HEADER ── */
+  .slide-header {
+    background: var(--navy);
+    border-bottom: 3px solid var(--gold);
+    padding: 14px 24px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-shrink: 0;
+  }
+  .avatar {
+    width: 52px; height: 52px;
+    border-radius: 50%;
+    border: 2px solid var(--gold);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.6rem;
+    background: var(--navy-light);
+    flex-shrink: 0;
+  }
+  .slide-meta { flex: 1; }
+  .slide-subject {
+    font-size: 0.7rem; letter-spacing: 2px; text-transform: uppercase;
+    color: var(--gold); margin-bottom: 2px;
+  }
+  .slide-title { font-size: 1.25rem; font-weight: 700; color: var(--white); }
+  .voice-name { font-size: 0.75rem; color: var(--text-dim); margin-top: 2px; }
+
+  /* ── CONTENT AREA ── */
+  .slide-body {
+    flex: 1;
+    display: flex;
+    gap: 0;
+    overflow: hidden;
+  }
+
+  /* ── SCRIPT PANEL ── */
+  .script-panel {
+    flex: 1;
+    padding: 20px 24px;
+    overflow-y: auto;
+    border-right: 1px solid var(--navy-light);
+  }
+  .script-label {
+    font-size: 0.65rem; letter-spacing: 2px; text-transform: uppercase;
+    color: var(--gold); margin-bottom: 12px;
+  }
+  #script-text {
+    font-size: 1.05rem;
+    line-height: 1.8;
+    color: var(--white);
+    min-height: 80px;
+  }
+  .word {
+    display: inline;
+    transition: background 0.15s, color 0.15s;
+    border-radius: 3px;
+    padding: 0 1px;
+  }
+  .word.spoken { color: var(--gold-light); }
+  .word.current {
+    background: var(--gold);
+    color: var(--navy-dark);
+    font-weight: 700;
+    border-radius: 4px;
+    padding: 0 3px;
+  }
+
+  /* ── KEYWORDS PANEL ── */
+  .keywords-panel {
+    width: 240px;
+    padding: 16px;
+    overflow-y: auto;
+    background: rgba(255,255,255,0.03);
+    flex-shrink: 0;
+  }
+  .kw-label {
+    font-size: 0.65rem; letter-spacing: 2px; text-transform: uppercase;
+    color: var(--gold); margin-bottom: 10px;
+  }
+  .kw-item {
+    background: var(--navy-light);
+    border-left: 3px solid var(--gold);
+    padding: 6px 10px;
+    margin-bottom: 8px;
+    font-size: 0.78rem;
+    line-height: 1.4;
+    border-radius: 0 4px 4px 0;
+    color: var(--white);
+  }
+  .connection-box {
+    margin-top: 12px;
+    background: rgba(201,162,39,0.12);
+    border: 1px solid var(--gold);
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-size: 0.75rem;
+    color: var(--gold-light);
+    line-height: 1.5;
+  }
+  .connection-box strong { display: block; margin-bottom: 4px; color: var(--gold); }
+
+  /* ── CONTROLS ── */
+  #controls {
+    background: var(--navy);
+    border-top: 3px solid var(--gold);
+    padding: 12px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    flex-shrink: 0;
+  }
+
+  .btn {
+    background: var(--navy-light);
+    color: var(--white);
+    border: 2px solid transparent;
+    border-radius: 8px;
+    padding: 10px 20px;
+    font-size: 0.88rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+  }
+  .btn:hover { border-color: var(--gold); color: var(--gold); }
+  .btn:active { transform: scale(0.96); }
+  .btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+  .btn-primary {
+    background: var(--gold);
+    color: var(--navy-dark);
+    border-color: var(--gold);
+    font-size: 1rem;
+    padding: 11px 28px;
+  }
+  .btn-primary:hover { background: var(--gold-light); border-color: var(--gold-light); color: var(--navy-dark); }
+
+  .btn-danger { border-color: #cc4444; }
+  .btn-danger:hover { background: #cc4444; }
+
+  /* speed selector */
+  #speed-wrap { display: flex; align-items: center; gap: 6px; font-size: 0.78rem; color: var(--text-dim); }
+  #speed-select {
+    background: var(--navy-light); color: var(--white);
+    border: 1px solid var(--gold); border-radius: 5px;
+    padding: 4px 8px; font-size: 0.78rem; cursor: pointer;
+  }
+
+  /* ── STATUS LINE ── */
+  #status {
+    position: absolute; bottom: 70px; left: 50%; transform: translateX(-50%);
+    background: rgba(26,36,83,0.92);
+    border: 1px solid var(--gold);
+    border-radius: 20px;
+    padding: 5px 18px;
+    font-size: 0.75rem;
+    color: var(--gold-light);
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.3s;
+    white-space: nowrap;
+  }
+  #status.show { opacity: 1; }
+
+  /* ── SCROLLBAR ── */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: var(--navy-dark); }
+  ::-webkit-scrollbar-thumb { background: var(--navy-light); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--gold); }
+
+  /* ── MOBILE ── */
+  @media (max-width: 640px) {
+    .keywords-panel { display: none; }
+    .slide-title { font-size: 1rem; }
+    #controls { gap: 8px; }
+    .btn { padding: 9px 14px; font-size: 0.8rem; }
+    .btn-primary { padding: 9px 18px; }
+  }
+</style>
+</head>
+<body>
+
+<div id="topbar">
+  <h1>Maturità 2026 · Domenico</h1>
+  <span id="slide-counter">Slide 1 / 7</span>
+</div>
+<div id="progress-wrap"><div id="progress-bar"></div></div>
+
+<div id="stage">
+
+  <!-- SLIDE 1: PCTO -->
+  <div class="slide active" data-index="0">
+    <div class="slide-header">
+      <div class="avatar">👨‍💻</div>
+      <div class="slide-meta">
+        <div class="slide-subject">Slide 1 · PCTO</div>
+        <div class="slide-title">La mia esperienza professionale</div>
+        <div class="voice-name">Voce: Domenico in prima persona</div>
+      </div>
+    </div>
+    <div class="slide-body">
+      <div class="script-panel">
+        <div class="script-label">Copione parlato</div>
+        <div id="script-text"></div>
+      </div>
+      <div class="keywords-panel">
+        <div class="kw-label">Parole chiave</div>
+        <div class="kw-item">Responsabile ICT</div>
+        <div class="kw-item">Infrastrutture di rete</div>
+        <div class="kw-item">Server · Firewall · VPN · Switch · Database</div>
+        <div class="kw-item">Team di 4 persone</div>
+        <div class="kw-item">Cisco Meraki / Catalyst · Zyxel · WatchGuard · Sophos</div>
+        <div class="kw-item">Passione → Diploma → Laurea → Ingegnere informatico</div>
+        <div class="connection-box">
+          <strong>→ Collegamento</strong>
+          La parola DATABASE del mio lavoro mi collega all'informatica — ma prima parliamo di letteratura e storia.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLIDE 2: D'Annunzio -->
+  <div class="slide" data-index="1">
+    <div class="slide-header">
+      <div class="avatar">📖</div>
+      <div class="slide-meta">
+        <div class="slide-subject">Slide 2 · Letteratura Italiana</div>
+        <div class="slide-title">Gabriele D'Annunzio</div>
+        <div class="voice-name">Voce: Il narratore letterario</div>
+      </div>
+    </div>
+    <div class="slide-body">
+      <div class="script-panel">
+        <div class="script-label">Copione parlato</div>
+        <div id="script-text"></div>
+      </div>
+      <div class="keywords-panel">
+        <div class="kw-label">Concetti chiave</div>
+        <div class="kw-item"><strong>Estetismo</strong> — Arte come fine supremo, rifiuto morale borghese</div>
+        <div class="kw-item"><strong>Maschera dell'esteta</strong> — Strategia di visibilità pubblica</div>
+        <div class="kw-item"><strong>Crisi dell'estetismo</strong> — La maschera non regge (Il Piacere)</div>
+        <div class="kw-item"><strong>Nietzsche / Superuomo</strong> — Dionisiaco vs Apollineo</div>
+        <div class="kw-item"><strong>Vivere inimitabile</strong> — Tutta la vita come opera d'arte</div>
+        <div class="connection-box">
+          <strong>→ Collegamento</strong>
+          D'Annunzio visse a cavallo tra '800 e '900 → quel periodo coincide con la Prima Guerra Mondiale.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLIDE 3: Prima Guerra Mondiale -->
+  <div class="slide" data-index="2">
+    <div class="slide-header">
+      <div class="avatar">⚔️</div>
+      <div class="slide-meta">
+        <div class="slide-subject">Slide 3 · Storia</div>
+        <div class="slide-title">La Prima Guerra Mondiale</div>
+        <div class="voice-name">Voce: Il cronista storico</div>
+      </div>
+    </div>
+    <div class="slide-body">
+      <div class="script-panel">
+        <div class="script-label">Copione parlato</div>
+        <div id="script-text"></div>
+      </div>
+      <div class="keywords-panel">
+        <div class="kw-label">Date fondamentali</div>
+        <div class="kw-item"><strong>28 giu 1914</strong> — Assassinio Francesco Ferdinando</div>
+        <div class="kw-item"><strong>28 lug 1914</strong> — Austria dichiara guerra alla Serbia</div>
+        <div class="kw-item"><strong>24 mag 1915</strong> — Italia entra (Patti di Londra)</div>
+        <div class="kw-item"><strong>Ott 1917</strong> — Caporetto · Cadorna → Diaz</div>
+        <div class="kw-item"><strong>1917</strong> — Russia esce / USA entrano</div>
+        <div class="kw-item"><strong>11 nov 1918</strong> — Fine guerra · vittoria Intesa</div>
+        <div class="connection-box">
+          <strong>→ Collegamento</strong>
+          Dalla guerra nasce l'esigenza di ricostruire l'Italia su basi democratiche → Nascita della Costituzione.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLIDE 4: Costituzione -->
+  <div class="slide" data-index="3">
+    <div class="slide-header">
+      <div class="avatar">🏛️</div>
+      <div class="slide-meta">
+        <div class="slide-subject">Slide 4 · Educazione Civica</div>
+        <div class="slide-title">Nascita della Costituzione Italiana</div>
+        <div class="voice-name">Voce: Il giurista civico</div>
+      </div>
+    </div>
+    <div class="slide-body">
+      <div class="script-panel">
+        <div class="script-label">Copione parlato</div>
+        <div id="script-text"></div>
+      </div>
+      <div class="keywords-panel">
+        <div class="kw-label">Caratteristiche</div>
+        <div class="kw-item"><strong>SCRITTA</strong> — 139 articoli in un unico documento</div>
+        <div class="kw-item"><strong>RIGIDA</strong> — Modifica con procedimento aggravato (art. 138)</div>
+        <div class="kw-item"><strong>LUNGA</strong> — Entra nel dettaglio di molte materie</div>
+        <div class="kw-item"><strong>APERTA</strong> — Lascia alla legge ordinaria il bilanciamento</div>
+        <div class="kw-item"><strong>2 giu 1946</strong> — Referendum · Assemblea Costituente<br><strong>27 dic 1946</strong> — Promulgazione (De Nicola)<br><strong>1° gen 1948</strong> — Entrata in vigore</div>
+        <div class="connection-box">
+          <strong>→ Collegamento</strong>
+          Come in Italia nasce una Costituzione, anche il Regno Unito ha il suo sistema di governo → UK Politics.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLIDE 5: UK Politics -->
+  <div class="slide" data-index="4">
+    <div class="slide-header">
+      <div class="avatar">🇬🇧</div>
+      <div class="slide-meta">
+        <div class="slide-subject">Slide 5 · Inglese</div>
+        <div class="slide-title">UK Politics</div>
+        <div class="voice-name">Voice: The English narrator (in English)</div>
+      </div>
+    </div>
+    <div class="slide-body">
+      <div class="script-panel">
+        <div class="script-label">Spoken script (in English)</div>
+        <div id="script-text"></div>
+      </div>
+      <div class="keywords-panel">
+        <div class="kw-label">I 3 rami del governo UK</div>
+        <div class="kw-item"><strong>LEGISLATIVE</strong> — House of Commons (646 MP) + House of Lords</div>
+        <div class="kw-item"><strong>EXECUTIVE</strong> — Prime Minister + Cabinet (~20 Secretaries of State)</div>
+        <div class="kw-item"><strong>JUDICIARY</strong> — Law courts · House of Lords (corte suprema)</div>
+        <div class="kw-item">Magna Carta 1215 · Bill of Rights 1689 · Human Rights Act 2000</div>
+        <div class="kw-item">Devolution: Scozia, Galles, Irlanda del Nord</div>
+        <div class="connection-box">
+          <strong>→ Collegamento</strong>
+          "The judges manage DATABASE records of rulings" → Basi di Dati (Informatica).
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLIDE 6: Database -->
+  <div class="slide" data-index="5">
+    <div class="slide-header">
+      <div class="avatar">🗄️</div>
+      <div class="slide-meta">
+        <div class="slide-subject">Slide 6 · Informatica</div>
+        <div class="slide-title">Le Basi di Dati (Database)</div>
+        <div class="voice-name">Voce: Il tecnico informatico</div>
+      </div>
+    </div>
+    <div class="slide-body">
+      <div class="script-panel">
+        <div class="script-label">Copione parlato</div>
+        <div id="script-text"></div>
+      </div>
+      <div class="keywords-panel">
+        <div class="kw-label">I 4 modelli di dati</div>
+        <div class="kw-item"><strong>Gerarchico</strong> — Struttura ad albero, un solo padre, rigido</div>
+        <div class="kw-item"><strong>Reticolare (1973)</strong> — Struttura a grafo, più padri, complesso</div>
+        <div class="kw-item"><strong>Relazionale (Codd, 1970)</strong> — Tabelle + SQL, il più diffuso</div>
+        <div class="kw-item"><strong>A oggetti</strong> — Integra OOP, usato nel multimedia</div>
+        <div class="kw-item"><strong>6 caratteristiche (I-S-C-C-P-S)</strong><br>Integra · Sicura · Consistente · Condivisibile · Persistente · Scalabile</div>
+        <div class="connection-box">
+          <strong>→ Collegamento</strong>
+          I database sono fondamentali in azienda → Le Immobilizzazioni (Economia).
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLIDE 7: Immobilizzazioni -->
+  <div class="slide" data-index="6">
+    <div class="slide-header">
+      <div class="avatar">💼</div>
+      <div class="slide-meta">
+        <div class="slide-subject">Slide 7 · Economia Aziendale</div>
+        <div class="slide-title">Le Immobilizzazioni</div>
+        <div class="voice-name">Voce: Il manager economista</div>
+      </div>
+    </div>
+    <div class="slide-body">
+      <div class="script-panel">
+        <div class="script-label">Copione parlato</div>
+        <div id="script-text"></div>
+      </div>
+      <div class="keywords-panel">
+        <div class="kw-label">Le 3 categorie</div>
+        <div class="kw-item"><strong>IMMATERIALI</strong> — Marchi, brevetti, licenze, software, avviamento</div>
+        <div class="kw-item"><strong>MATERIALI</strong> — Terreni (no amm.), fabbricati, macchinari, veicoli</div>
+        <div class="kw-item"><strong>FINANZIARIE</strong> — Partecipazioni, obbligazioni, prestiti L.T.</div>
+        <div class="kw-item"><strong>Ammortamento</strong><br>Quota = Costo ÷ Vita utile<br>50.000 € ÷ 5 anni = 10.000 €/anno</div>
+        <div class="connection-box">
+          <strong>Fine del percorso</strong>
+          Server → immobilizzazioni materiali. Software → immobilizzazioni immateriali. La teoria incontra la pratica!
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="status"></div>
+</div><!-- end stage -->
+
+<div id="controls">
+  <button class="btn" id="btn-prev" onclick="changeSlide(-1)" disabled>◀ Indietro</button>
+  <button class="btn btn-primary" id="btn-play" onclick="togglePlay()">▶ Inizia lettura</button>
+  <button class="btn btn-danger" id="btn-stop" onclick="stopAll()" disabled>■ Stop</button>
+  <button class="btn" id="btn-next" onclick="changeSlide(1)">Avanti ▶</button>
+  <div id="speed-wrap">
+    <span>Velocità:</span>
+    <select id="speed-select" onchange="updateRate()">
+      <option value="0.7">Lenta</option>
+      <option value="0.82" selected>Normale</option>
+      <option value="0.95">Veloce</option>
+      <option value="1.1">Rapida</option>
+    </select>
+  </div>
+</div>
+
+<script>
+// ── SCRIPTS ──────────────────────────────────────────────────────────────────
+const SCRIPTS = [
+  // Slide 1 — PCTO
+  `Buongiorno, vorrei iniziare presentandomi e raccontando la mia esperienza lavorativa, che rappresenta il cuore del mio percorso PCTO. Da oltre dieci anni lavoro come responsabile ICT per un'azienda, occupandomi della progettazione delle infrastrutture di rete: server, firewall, VPN, switch e database. Gestisco un team di quattro persone e lavoro quotidianamente con tecnologie come Cisco Meraki, Cisco Catalyst, Zyxel, WatchGuard e Sophos. Ho iniziato questa carriera per pura passione per il mondo informatico e dei sistemi di rete. Oggi, conseguire questo diploma rappresenta per me un obiettivo fondamentale: voglio continuare a studiare, iscrivermi all'università e diventare ingegnere informatico, arricchendo ulteriormente le mie competenze tecniche e professionali.`,
+
+  // Slide 2 — D'Annunzio
+  `Dopo essermi presentato, passo alla letteratura italiana. Il mio argomento è Gabriele D'Annunzio, figura centrale del Decadentismo italiano. D'Annunzio è un autore che ha sempre cercato di fare della propria vita un'opera d'arte: il suo ideale era il cosiddetto vivere inimitabile. Viviamo nel periodo dell'Estetismo: l'artista si sottrae alle regole della morale comune e ricerca il bello puro, rifiutando il consumismo e la morale borghese. D'Annunzio però, a differenza degli altri esteti, non si rassegna all'emarginazione: si costruisce la maschera dell'esteta come strumento di visibilità pubblica, per attirare l'attenzione e vendere le sue opere. Parallelamente, D'Annunzio si avvicina al pensiero di Nietzsche, in particolare al mito del Superuomo. Nietzsche distingue lo spirito dionisiaco, sregolatezza e vitalità, dallo spirito apollineo, ragione e controllo. D'Annunzio interpreta però Nietzsche in modo parziale: prende solo ciò che gli conviene, immaginando che alcune persone siano per natura destinate a fare grandi cose. Questa visione lo affascina perché il Superuomo, a differenza dell'esteta fragile, è un essere vitale e creativo. D'Annunzio visse tra la fine dell'Ottocento e i primi del Novecento: un'epoca segnata dalla Seconda Rivoluzione Industriale e, di lì a poco, dalla Prima Guerra Mondiale, guerre e cambiamenti che influenzarono profondamente anche la sua produzione letteraria e il suo attivismo politico.`,
+
+  // Slide 3 — Prima Guerra Mondiale
+  `Il periodo storico in cui visse D'Annunzio fu segnato da uno degli eventi più devastanti della storia: la Prima Guerra Mondiale. Viene chiamata Grande Guerra per tre motivi fondamentali: l'alto numero di Paesi coinvolti, le nuove armi mai usate prima, aerei, carri armati, gas asfissianti, sottomarini, e l'elevatissimo numero di vittime. È anche definita guerra totale perché coinvolse non solo i soldati sul fronte esterno, ma anche tutta la popolazione civile sul fronte interno. La scintilla che fece scoppiare il conflitto fu l'assassinio dell'erede al trono austro-ungarico, Francesco Ferdinando, a Sarajevo il 28 giugno 1914, per mano di uno studente serbo nazionalista. L'Austria dichiarò guerra alla Serbia, scattò il meccanismo delle alleanze, e la guerra si allargò. L'Italia inizialmente si dichiarò neutrale. In Italia si formarono due correnti: i Neutralisti, che volevano sfruttare la neutralità per ottenere vantaggi territoriali, e gli Interventisti, che volevano entrare in guerra per riconquistare Trento e Trieste e completare il Risorgimento. Vinsero gli interventisti: nel 1915, con i Patti di Londra, l'Italia entrò in guerra a fianco di Francia, Inghilterra e Russia. Uno dei momenti più drammatici per l'Italia fu la disfatta di Caporetto nell'ottobre 1917, quando gli austriaci invasero il Veneto fino al Piave. Il generale Cadorna, comandante fino a quel momento, era noto per la sua disciplina ferrea e per la decimazione dei soldati: fu sostituito dal generale Diaz, che riorganizzò la difesa. Nel 1917 la Russia uscì dalla guerra a causa della Rivoluzione comunista, ma entrarono gli Stati Uniti, portando un contributo decisivo. La guerra si concluse l'11 novembre 1918 con la vittoria dell'Intesa, dopo milioni di morti e distruzioni immense.`,
+
+  // Slide 4 — Costituzione
+  `Dopo le devastazioni della guerra e del fascismo, l'Italia doveva ricostruirsi. Il 2 giugno 1946 fu una data storica: gli italiani si recarono alle urne per scegliere tra Monarchia e Repubblica, e per eleggere i rappresentanti dell'Assemblea Costituente. Fu la prima volta che le donne parteciparono a un'assemblea elettiva in Italia: ben 21 donne furono elette tra i 556 deputati. L'Assemblea Costituente fu incaricata di redigere la Carta fondamentale dello Stato. La Costituzione fu promulgata dal Capo provvisorio dello Stato, Enrico De Nicola, il 27 dicembre 1946, ed entrò in vigore il 1° gennaio 1948. La Costituzione italiana ha caratteristiche ben precise: è scritta, contenuta in un unico documento di 139 articoli; è rigida, per modificarla serve un procedimento aggravato, non basta una legge ordinaria; è lunga, non si limita ai principi generali ma entra in dettaglio su molte materie; ed è aperta, lascia alla legge ordinaria il compito di bilanciare gli interessi nel tempo. Rappresenta la fonte suprema del diritto italiano: tutte le altre leggi devono conformarsi ad essa. La Corte Costituzionale vigila su questo rispetto. A distanza di oltre 75 anni, la Costituzione ha dimostrato la sua forza e il suo dinamismo, accompagnando l'Italia attraverso vicende storiche molto diverse, senza mai tradire i principi di democrazia, legalità e uguaglianza.`,
+
+  // Slide 5 — UK Politics (in English)
+  `Now I would like to talk about UK politics. The United Kingdom is a constitutional monarchy, with King Charles the Third as Head of State, and a parliamentary democracy, where Parliament holds the legislative power. Parliament is bicameral: it consists of the elected House of Commons and the non-elected House of Lords. Unlike Italy, the UK does not have a single written constitution. Instead, the constitutional framework is made up of common laws, statute laws, and conventions. Key constitutional documents include the Magna Carta of 1215, which limited the power of the Crown; the Bill of Rights of 1689, which extended Parliament's powers; and the Human Rights Act of 2000. The UK government has three branches: the Legislative, which is Parliament; the Executive, which is the Prime Minister and the Cabinet; and the Judiciary, which is the law courts, with the House of Lords as the highest court of appeal. The Prime Minister is the Head of Government and is usually the leader of the ruling party. He or she appoints and dismisses Cabinet ministers, leads Cabinet meetings, and decides the date of general elections. The Cabinet is made up of around 20 senior ministers, called Secretaries of State. An important feature of the UK system is devolution: Scotland has its own Parliament, while Wales and Northern Ireland have assemblies. These are different from a federal system, because they have no constitutional right to exist and their powers can be changed by the UK Parliament.`,
+
+  // Slide 6 — Database
+  `Passo ora all'informatica, materia che mi è particolarmente vicina per la mia esperienza professionale. Una base di dati è una raccolta di dati logicamente correlati, progettati per essere fruiti in maniera ottimizzata da differenti applicazioni e utenti. Per essere definita tale, una base di dati deve rispettare sei caratteristiche fondamentali: deve essere integra, le operazioni autorizzate non devono causare perdita di consistenza; sicura, protetta da eventi accidentali e accessi non autorizzati; consistente, i dati devono essere significativi e effettivamente utilizzabili; condivisibile, più utenti e applicazioni possono accedervi; persistente, i dati sopravvivono alle singole esecuzioni dei programmi; e scalabile, mantiene le prestazioni all'aumentare dei dati. Prima dell'avvento dei database, esistevano gli archivi tradizionali, con problemi gravi: ridondanza dei dati, incongruenza e inconsistenza. La svolta fu l'introduzione del DBMS, il DataBase Management System: un software che gestisce gli archivi in modo intuitivo, garantendo gestione, persistenza, sicurezza, integrità e supporto alle transazioni. Esistono quattro modelli di dati. Il modello gerarchico organizza i dati ad albero, con un unico record padre per ogni nodo, rigido e poco flessibile. Il modello reticolare, ideato nel 1973, usa strutture a grafo e permette più record padre, ma è complesso da gestire. Il modello relazionale, inventato da Codd nel 1970, è il più diffuso: organizza i dati in tabelle collegate tra loro tramite campi comuni. Il modello a oggetti è l'evoluzione del relazionale, che integra la programmazione orientata agli oggetti ed è usato in applicazioni multimediali. Il DBMS opera su tre livelli di astrazione: il livello esterno, con cui interagisce l'utente finale; il livello concettuale o logico, che descrive la struttura dei dati; e il livello interno o fisico, che gestisce la memorizzazione reale sui supporti.`,
+
+  // Slide 7 — Immobilizzazioni
+  `Concludo il mio percorso con l'economia aziendale, e in particolare con le immobilizzazioni: tra tutti gli argomenti che ho studiato in economia, questo è quello che mi ha sempre affascinato di più, perché mi permette di capire come un'azienda gestisce le sue risorse nel tempo. Le immobilizzazioni sono beni e diritti che l'impresa possiede e che non vengono consumati immediatamente, ma restano a disposizione per lungo tempo, contribuendo a generare ricchezza futura. Si differenziano dalle attività correnti, come le scorte o i crediti, proprio per questa caratteristica di lunga durata. Le immobilizzazioni si classificano in tre grandi categorie. Le immobilizzazioni immateriali sono le risorse intangibili: marchi, brevetti, licenze, software e avviamento. Non si toccano fisicamente, ma hanno un valore economico duraturo. Le immobilizzazioni materiali sono i beni tangibili: terreni, fabbricati, macchinari, attrezzature, veicoli aziendali. I terreni generalmente non si ammortizzano perché il loro valore non diminuisce; macchinari e fabbricati invece perdono valore nel tempo per uso e obsolescenza. Le immobilizzazioni finanziarie rappresentano gli investimenti a lungo termine: partecipazioni in altre società, obbligazioni, prestiti concessi ad altre imprese. Un concetto fondamentale è l'ammortamento: il processo con cui si ripartisce il costo di un bene lungo la sua vita utile stimata. La formula è semplice: quota annua uguale costo del bene diviso vita utile. Ad esempio, un macchinario da 50.000 euro con vita utile di 5 anni avrà una quota di ammortamento di 10.000 euro all'anno. Questa quota si registra ogni anno in contabilità, riducendo il valore contabile del bene tramite il fondo ammortamento, senza però eliminarlo fisicamente dal bilancio. Analizzare le immobilizzazioni di un'azienda ci dice molto: quanto investe in infrastrutture, quanto valore consuma ogni anno, e qual è la sua capacità di crescita nel tempo. Grazie per la vostra attenzione.`
+];
+
+// ── VOICE LANGUAGES ──────────────────────────────────────────────────────────
+const LANGS = ['it-IT','it-IT','it-IT','it-IT','en-GB','it-IT','it-IT'];
+
+// ── iOS / Safari detection ────────────────────────────────────────────────────
+const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+              (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+// ── STATE ────────────────────────────────────────────────────────────────────
+let currentSlide = 0;
+let isPlaying    = false;
+let isPaused     = false;
+let utterance    = null;
+let wordSpans    = [];
+// Timer-based fallback (iOS doesn't fire onboundary)
+let timerWordIdx = 0;   // current word in timer mode
+let timerHandle  = null;
+let boundaryWorked = false; // did native boundary fire at least once?
+let boundaryCheckTimer = null;
+let speakStartWord = 0; // word index we started speaking from (for resume)
+
+// ── INIT SLIDE ───────────────────────────────────────────────────────────────
+function initSlide(idx) {
+  const slides = document.querySelectorAll('.slide');
+  slides.forEach(s => s.classList.remove('active'));
+  slides[idx].classList.add('active');
+
+  const container = slides[idx].querySelector('#script-text');
+  const words = SCRIPTS[idx].split(/(\s+)/);
+  container.innerHTML = '';
+  wordSpans = [];
+
+  words.forEach(token => {
+    if (/^\s+$/.test(token)) {
+      container.appendChild(document.createTextNode(token));
+    } else if (token.length > 0) {
+      const span = document.createElement('span');
+      span.className = 'word';
+      span.textContent = token;
+      container.appendChild(span);
+      wordSpans.push(span);
+    }
+  });
+
+  document.getElementById('slide-counter').textContent = `Slide ${idx+1} / 7`;
+  const pct = (idx / 6) * 100;
+  document.getElementById('progress-bar').style.width = pct + '%';
+  document.getElementById('btn-prev').disabled = idx === 0;
+  document.getElementById('btn-next').disabled = idx === 6;
+}
+
+// ── CHANGE SLIDE ─────────────────────────────────────────────────────────────
+function changeSlide(dir) {
+  stopAll();
+  const next = currentSlide + dir;
+  if (next < 0 || next > 6) return;
+  currentSlide = next;
+  initSlide(currentSlide);
+  resetWordHighlights();
+}
+
+// ── HIGHLIGHT ─────────────────────────────────────────────────────────────────
+function resetWordHighlights() {
+  wordSpans.forEach(s => { s.className = 'word'; });
+}
+
+function highlightWord(idx) {
+  if (idx < 0 || idx >= wordSpans.length) return;
+  wordSpans.forEach((s, i) => {
+    if (i < idx)      s.className = 'word spoken';
+    else if (i === idx) s.className = 'word current';
+    else               s.className = 'word';
+  });
+  wordSpans[idx].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+}
+
+// ── PUNCTUATION BREATHING ────────────────────────────────────────────────────
+// Add micro-pauses so TTS engines breathe naturally at punctuation marks.
+// Extra spaces = brief pause in most engines (including iOS Safari).
+function addBreathing(text) {
+  return text
+    .replace(/\. /g,  '.   ')   // full stop → long pause
+    .replace(/\? /g,  '?   ')
+    .replace(/! /g,   '!   ')
+    .replace(/: /g,   ':  ')    // colon → medium pause
+    .replace(/; /g,   ';  ')
+    .replace(/, /g,   ',  ')    // comma → short pause
+    .replace(/— /g,   '—  ');
+}
+
+// ── TIMER-BASED FALLBACK (for iOS Safari) ────────────────────────────────────
+// Estimate ms per word based on its length, punctuation, and speech rate.
+function msForWord(wordText, rate) {
+  const baseMs = 420;
+  const charMs = 52;
+  let raw = (baseMs + (wordText.length - 4) * charMs) / rate;
+  // Extra pause after sentence-ending punctuation
+  if (/[.!?]$/.test(wordText))  raw += 350 / rate;
+  else if (/[,;:\—]$/.test(wordText)) raw += 180 / rate;
+  return Math.max(130, raw);
+}
+
+function startTimerMode(fromWordIdx, rate) {
+  clearTimerMode();
+  timerWordIdx = fromWordIdx;
+
+  function scheduleNext() {
+    if (timerWordIdx >= wordSpans.length) return;
+    highlightWord(timerWordIdx);
+    const delay = msForWord(wordSpans[timerWordIdx].textContent, rate);
+    timerWordIdx++;
+    timerHandle = setTimeout(scheduleNext, delay);
+  }
+  scheduleNext();
+}
+
+function clearTimerMode() {
+  if (timerHandle !== null) { clearTimeout(timerHandle); timerHandle = null; }
+}
+
+// ── BUILD CHAR MAP ────────────────────────────────────────────────────────────
+function buildWordMap(text) {
+  const map = [];
+  const re = /\S+/g;
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    map.push({ start: m.index, end: m.index + m[0].length });
+  }
+  return map;
+}
+
+// ── SPEAK (from a given word index) ──────────────────────────────────────────
+function speakFrom(fromWordIdx) {
+  if (!window.speechSynthesis) {
+    showStatus('Il browser non supporta la sintesi vocale');
+    return;
+  }
+
+  window.speechSynthesis.cancel();
+  clearTimerMode();
+  clearTimeout(boundaryCheckTimer);
+
+  // Build the text starting from fromWordIdx, with natural punctuation pauses
+  const allWords = wordSpans.map(s => s.textContent);
+  const rawText = allWords.slice(fromWordIdx).join(' ');
+  const text = addBreathing(rawText);
+  speakStartWord = fromWordIdx;
+
+  const rate = parseFloat(document.getElementById('speed-select').value);
+  utterance = new SpeechSynthesisUtterance(text);
+  utterance.lang = LANGS[currentSlide];
+  utterance.rate = rate;
+  utterance.pitch = 0.95;  // slightly lower = more natural
+
+  // Prefer high-quality voices: on iOS "Alice"/"Federica" (it), "Daniel" (en-GB)
+  const voices = window.speechSynthesis.getVoices();
+  const lang = LANGS[currentSlide];
+  const premiumNames = lang.startsWith('it') ? ['Alice','Federica','Luca','Paola']
+                                              : ['Daniel','Kate','Moira'];
+  const match = premiumNames.map(n => voices.find(v => v.name === n)).find(Boolean)
+             || voices.find(v => v.lang === lang && v.localService)
+             || voices.find(v => v.lang === lang)
+             || voices.find(v => v.lang.startsWith(lang.split('-')[0]));
+  if (match) utterance.voice = match;
+
+  const wordMap = buildWordMap(text);
+  let lastWordIdx = -1;
+  boundaryWorked = false;
+
+  utterance.onboundary = (e) => {
+    if (e.name !== 'word') return;
+    boundaryWorked = true;
+    clearTimeout(boundaryCheckTimer);
+    clearTimerMode(); // stop timer if it was running
+
+    const charIdx = e.charIndex;
+    let wi = wordMap.findIndex(w => charIdx >= w.start && charIdx < w.end);
+    if (wi === -1) wi = wordMap.findIndex(w => w.start >= charIdx);
+    if (wi === -1) wi = wordMap.length - 1;
+
+    const absIdx = fromWordIdx + wi;
+    if (absIdx !== lastWordIdx && absIdx < wordSpans.length) {
+      lastWordIdx = absIdx;
+      highlightWord(absIdx);
+    }
+  };
+
+  utterance.onstart = () => {
+    // Give boundary 1.2 seconds to fire; if not, switch to timer mode
+    boundaryCheckTimer = setTimeout(() => {
+      if (!boundaryWorked) {
+        showStatus('Modalità timer attiva (Safari/iOS)');
+        startTimerMode(fromWordIdx, rate);
+      }
+    }, 1200);
+  };
+
+  utterance.onend = () => {
+    clearTimerMode();
+    clearTimeout(boundaryCheckTimer);
+    wordSpans.forEach(s => s.className = 'word spoken');
+    isPlaying = false;
+    isPaused = false;
+    timerWordIdx = 0;
+    updateButtons();
+    showStatus('Lettura completata ✓');
+  };
+
+  utterance.onerror = (e) => {
+    clearTimerMode();
+    clearTimeout(boundaryCheckTimer);
+    if (e.error !== 'interrupted' && e.error !== 'canceled') {
+      showStatus('Errore voce: ' + e.error);
+    }
+    isPlaying = false;
+    isPaused = false;
+    updateButtons();
+  };
+
+  window.speechSynthesis.speak(utterance);
+  isPlaying = true;
+  isPaused = false;
+  updateButtons();
+}
+
+// ── iOS KEEP-ALIVE (Safari pauses TTS after ~15s in background) ──────────────
+let keepAliveInterval = null;
+function startKeepAlive() {
+  if (!isIOS) return;
+  stopKeepAlive();
+  keepAliveInterval = setInterval(() => {
+    if (window.speechSynthesis.speaking && !window.speechSynthesis.paused) {
+      window.speechSynthesis.pause();
+      window.speechSynthesis.resume();
+    }
+  }, 10000);
+}
+function stopKeepAlive() {
+  if (keepAliveInterval) { clearInterval(keepAliveInterval); keepAliveInterval = null; }
+}
+
+// ── TOGGLE PLAY ───────────────────────────────────────────────────────────────
+function togglePlay() {
+  if (!isPlaying && !isPaused) {
+    // Fresh start
+    resetWordHighlights();
+    timerWordIdx = 0;
+    speakFrom(0);
+    startKeepAlive();
+    return;
+  }
+
+  if (isPlaying) {
+    // Pause
+    const pausedAtWord = boundaryWorked
+      ? (wordSpans.findIndex(s => s.className === 'word current'))
+      : timerWordIdx - 1;
+    timerWordIdx = Math.max(0, pausedAtWord);
+
+    clearTimerMode();
+    clearTimeout(boundaryCheckTimer);
+    window.speechSynthesis.cancel(); // iOS doesn't support pause(), use cancel
+    stopKeepAlive();
+
+    isPaused = true;
+    isPlaying = false;
+    updateButtons();
+    showStatus('In pausa — premi ▶ per riprendere');
+    return;
+  }
+
+  if (isPaused) {
+    // Resume from saved word
+    const resumeFrom = Math.max(0, timerWordIdx);
+    highlightWord(resumeFrom);
+    speakFrom(resumeFrom);
+    startKeepAlive();
+    isPaused = false;
+    return;
+  }
+}
+
+// ── STOP ─────────────────────────────────────────────────────────────────────
+function stopAll() {
+  clearTimerMode();
+  clearTimeout(boundaryCheckTimer);
+  stopKeepAlive();
+  window.speechSynthesis && window.speechSynthesis.cancel();
+  isPlaying = false;
+  isPaused = false;
+  timerWordIdx = 0;
+  updateButtons();
+}
+
+// ── SPEED CHANGE ──────────────────────────────────────────────────────────────
+function updateRate() {
+  // If speaking, restart from current word with new rate
+  if (isPlaying) {
+    const cur = wordSpans.findIndex(s => s.className === 'word current');
+    const from = cur >= 0 ? cur : timerWordIdx;
+    speakFrom(from);
+  }
+}
+
+// ── BUTTONS ──────────────────────────────────────────────────────────────────
+function updateButtons() {
+  const btn  = document.getElementById('btn-play');
+  const stop = document.getElementById('btn-stop');
+  if (isPlaying)       btn.textContent = '⏸ Pausa';
+  else if (isPaused)   btn.textContent = '▶ Riprendi';
+  else                 btn.textContent = '▶ Inizia lettura';
+  stop.disabled = (!isPlaying && !isPaused);
+}
+
+// ── STATUS TOAST ─────────────────────────────────────────────────────────────
+let statusTimer;
+function showStatus(msg) {
+  const el = document.getElementById('status');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(statusTimer);
+  statusTimer = setTimeout(() => el.classList.remove('show'), 3000);
+}
+
+// ── KEYBOARD ─────────────────────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'SELECT') return;
+  if (e.key === ' ' || e.key === 'k') { e.preventDefault(); togglePlay(); }
+  if (e.key === 'ArrowRight') changeSlide(1);
+  if (e.key === 'ArrowLeft')  changeSlide(-1);
+  if (e.key === 'Escape' || e.key === 's') stopAll();
+});
+
+// ── BOOT ─────────────────────────────────────────────────────────────────────
+initSlide(0);
+updateButtons();
+
+// Pre-load voices (Safari needs this triggered early)
+function loadVoices() {
+  const v = window.speechSynthesis.getVoices();
+  if (v.length === 0 && window.speechSynthesis.onvoiceschanged !== undefined) {
+    window.speechSynthesis.onvoiceschanged = loadVoices;
+  }
+}
+loadVoices();
+
+if (isIOS) showStatus('iPad rilevato — usa Safari e alza il volume');
+</script>
+</body>
+</html>
