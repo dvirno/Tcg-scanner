@@ -1,0 +1,42 @@
+{
+  "azienda": "Rossi Servizi S.r.l.",
+  "nomeAssistente": "Giulia",
+  "saluto": "Buongiorno, ha chiamato Rossi Servizi, sono Giulia, l'assistente virtuale. Come posso aiutarla?",
+  "fusoOrario": "Europe/Rome",
+  "orari": {
+    "lunedi": "09:00-13:00, 14:30-18:30",
+    "martedi": "09:00-13:00, 14:30-18:30",
+    "mercoledi": "09:00-13:00, 14:30-18:30",
+    "giovedi": "09:00-13:00, 14:30-18:30",
+    "venerdi": "09:00-13:00, 14:30-17:00",
+    "sabato": "chiuso",
+    "domenica": "chiuso"
+  },
+  "reparti": [
+    {
+      "id": "commerciale",
+      "nome": "Ufficio commerciale",
+      "descrizione": "Preventivi, nuovi clienti, informazioni su prodotti e prezzi",
+      "telefono": "+390000000001"
+    },
+    {
+      "id": "assistenza",
+      "nome": "Assistenza tecnica",
+      "descrizione": "Guasti, problemi tecnici, interventi, garanzie",
+      "telefono": "+390000000002"
+    },
+    {
+      "id": "amministrazione",
+      "nome": "Amministrazione",
+      "descrizione": "Fatture, pagamenti, solleciti, dati di fatturazione",
+      "telefono": "+390000000003"
+    }
+  ],
+  "informazioni": [
+    "Indirizzo: Via Roma 1, 20100 Milano.",
+    "Sito web: www.esempio.it — email: info@esempio.it.",
+    "Parcheggio gratuito disponibile davanti alla sede.",
+    "I preventivi sono gratuiti e vengono inviati entro 48 ore lavorative."
+  ],
+  "istruzioniExtra": "Se il cliente chiede un appuntamento, raccogli nome, numero e preferenza di giorno/orario e lascia un messaggio al reparto commerciale."
+}
